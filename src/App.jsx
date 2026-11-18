@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard, DoorOpen, FileText, Receipt, Users, Settings, Search,
-  Bell, Plus, MoreHorizontal, Pencil, Trash2, X, Menu, ChevronDown,
-  TrendingUp, Wallet, CalendarDays, CheckCircle2, Clock3, LogOut,
-  Building2, SlidersHorizontal
+  Bell, Plus, Pencil, Trash2, X, Menu, ChevronDown,
+  TrendingUp, Wallet, CalendarDays, CheckCircle2, LogOut,
+  Building2, SlidersHorizontal, CreditCard, Wrench, Send, QrCode, Home, AlertCircle, Lock, User
 } from 'lucide-react';
 
 const initialRooms = [
@@ -33,6 +33,8 @@ const money = n => new Intl.NumberFormat('vi-VN').format(Number(n || 0)) + ' đ'
 const date = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('vi-VN') : '—';
 
 function App() {
+  // Trạng thái user đăng nhập: null (chưa đăng nhập), hoặc object user
+  const [user, setUser] = useState(null);
   const [page, setPage] = useState('Dashboard');
   const [rooms, setRooms] = useState(initialRooms);
   const [users, setUsers] = useState(initialUsers);
@@ -72,17 +74,44 @@ function App() {
     if (window.confirm('Bạn có chắc chắn muốn xóa mục này?')) { setter(current.filter(x => x.id !== id)); notify('Đã xóa dữ liệu.'); }
   }
 
+  // 1. Nếu chưa đăng nhập -> Hiển thị trang Login
+  if (!user) {
+    return <Login onLogin={(loggedInUser) => setUser(loggedInUser)} users={users} />;
+  }
+
+  // 2. Nếu là Người thuê -> Hiển thị Cổng thông tin người thuê
+  if (user.role === 'Người thuê') {
+    return <TenantPortal user={user} onLogout={() => setUser(null)} invoices={invoices} contracts={contracts} rooms={rooms} />;
+  }
+
+  // 3. Nếu là Admin -> Hiển thị giao diện quản lý
   return <div className="app-shell">
     <aside className={`sidebar ${mobileOpen ? 'show' : ''}`}>
       <div className="brand"><div className="brand-mark"><Building2 size={21}/></div><div><b>roomly</b><small>PROPERTY MANAGER</small></div><button className="mobile-close" onClick={() => setMobileOpen(false)}><X/></button></div>
       <div className="workspace"><div className="workspace-icon">R</div><div><b>Tòa nhà Roomly</b><small>Gói quản lý cơ bản</small></div><ChevronDown size={15}/></div>
       <div className="nav-caption">MENU CHÍNH</div>
       <nav>{nav.map(item => <button key={item.page} className={`nav-item ${page === item.page ? 'active' : ''}`} onClick={() => {setPage(item.page);setQuery('');setMobileOpen(false);}}><item.icon size={18}/><span>{item.label}</span>{page === item.page && <span className="active-dot"/>}</button>)}</nav>
-      <div className="sidebar-bottom"><div className="help-card"><div className="help-icon">✦</div><b>Cần hỗ trợ?</b><p>Xem hướng dẫn sử dụng hệ thống quản lý.</p><button onClick={() => notify('Chức năng hỗ trợ sẽ được bổ sung.')}>Trung tâm trợ giúp <span>→</span></button></div><button className="nav-item"><Settings size={18}/><span>Cài đặt</span></button><div className="profile"><div className="avatar">AD</div><div><b>Admin Roomly</b><small>Quản trị viên</small></div><LogOut size={17}/></div></div>
+      <div className="sidebar-bottom">
+        <div className="help-card"><div className="help-icon">✦</div><b>Cần hỗ trợ?</b><p>Xem hướng dẫn sử dụng hệ thống quản lý.</p><button onClick={() => notify('Chức năng hỗ trợ sẽ được bổ sung.')}>Trung tâm trợ giúp <span>→</span></button></div>
+        <button className="nav-item"><Settings size={18}/><span>Cài đặt</span></button>
+        <div className="profile" style={{ cursor: 'pointer' }} onClick={() => setUser(null)} title="Đăng xuất">
+          <div className="avatar">AD</div>
+          <div><b>{user.full_name}</b><small>Quản trị viên</small></div>
+          <LogOut size={17}/>
+        </div>
+      </div>
     </aside>
     {mobileOpen && <div className="scrim" onClick={() => setMobileOpen(false)}/>}
     <main className="main-area">
-      <header className="topbar"><button className="hamburger" onClick={() => setMobileOpen(true)}><Menu/></button><div className="breadcrumb">Workspace <span>/</span> <b>{page === 'Dashboard' ? 'Tổng quan' : page === 'Rooms' ? 'Quản lý phòng' : page === 'Contracts' ? 'Hợp đồng' : page === 'Invoices' ? 'Hóa đơn' : 'Người dùng'}</b></div><div className="top-actions"><div className="top-date"><CalendarDays size={15}/> Chủ nhật, 01/11/2026</div><button className="icon-btn" onClick={() => notify('Bạn không có thông báo mới.')}><Bell size={18}/><i/></button><div className="top-avatar">AD</div></div></header>
+      <header className="topbar">
+        <button className="hamburger" onClick={() => setMobileOpen(true)}><Menu/></button>
+        <div className="breadcrumb">Workspace <span>/</span> <b>{page === 'Dashboard' ? 'Tổng quan' : page === 'Rooms' ? 'Quản lý phòng' : page === 'Contracts' ? 'Hợp đồng' : page === 'Invoices' ? 'Hóa đơn' : 'Người dùng'}</b></div>
+        <div className="top-actions">
+          <div className="top-date"><CalendarDays size={15}/> Chủ nhật, 01/11/2026</div>
+          <button className="icon-btn" onClick={() => notify('Bạn không có thông báo mới.')}><Bell size={18}/><i/></button>
+          <div className="top-avatar" style={{ cursor: 'pointer' }} onClick={() => setUser(null)} title="Đăng xuất">AD</div>
+        </div>
+      </header>
       <section className="content">
         {page === 'Dashboard' && <Dashboard rooms={rooms} contracts={contracts} invoices={invoices} occupied={occupied} available={available} revenue={revenue} setPage={setPage}/>}
         {page === 'Rooms' && <Rooms rooms={filtered(rooms)} allRooms={rooms} onAdd={() => openCreate('room')} onEdit={r => openEdit('room',r)} onDelete={id => remove('room',id)} query={query} setQuery={setQuery}/>}
@@ -96,6 +125,284 @@ function App() {
   </div>;
 }
 
+// ----------------- COMPONENT: MÀN HÌNH ĐĂNG NHẬP -----------------
+function Login({ onLogin, users }) {
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('123456');
+  const [error, setError] = useState('');
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const found = users.find(u => u.username === username);
+    if (found) {
+      onLogin(found);
+    } else {
+      setError('Tên đăng nhập không tồn tại! (Thử: admin, nguyenvana, tranthib)');
+    }
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ width: '100%', maxWidth: '420px', background: 'white', padding: '36px', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div style={{ width: '56px', height: '56px', background: '#4f46e5', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', margin: '0 auto 16px' }}>
+            <Building2 size={28} />
+          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#0f172a', margin: 0 }}>Roomly Property</h1>
+          <p style={{ fontSize: '14px', color: '#64748b', marginTop: '6px' }}>Đăng nhập hệ thống quản lý phòng trọ</p>
+        </div>
+
+        {error && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '10px', fontSize: '13px', marginBottom: '16px' }}>
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Tên đăng nhập (Username)</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <User size={18} style={{ position: 'absolute', left: '12px', color: '#94a3b8' }} />
+              <input
+                type="text"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                placeholder="Nhập username..."
+                style={{ width: '100%', padding: '10px 14px 10px 40px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>Mật khẩu</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Lock size={18} style={{ position: 'absolute', left: '12px', color: '#94a3b8' }} />
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Nhập mật khẩu..."
+                style={{ width: '100%', padding: '10px 14px 10px 40px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none' }}
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            style={{ width: '100%', background: '#4f46e5', color: 'white', padding: '12px', borderRadius: '10px', fontWeight: 600, fontSize: '15px', border: 'none', cursor: 'pointer', marginTop: '8px' }}
+          >
+            Đăng nhập
+          </button>
+        </form>
+
+        <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+          <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px' }}>Tài khoản demo sẵn có để test:</p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => setUsername('admin')} style={{ fontSize: '11px', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>Admin: admin</button>
+            <button type="button" onClick={() => setUsername('nguyenvana')} style={{ fontSize: '11px', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>Thuê phòng: nguyenvana</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------- COMPONENT: CỔNG THÔNG TIN NGƯỜI THUÊ -----------------
+function TenantPortal({ user, onLogout, invoices, contracts }) {
+  const [showQR, setShowQR] = useState(false);
+  const [issueText, setIssueText] = useState('');
+  const [issues, setIssues] = useState([
+    { id: 1, title: 'Đèn hành lang tầng 1 nhấp nháy', date: '10/11/2026', status: 'Đã xử lý' }
+  ]);
+
+  const handleSendIssue = (e) => {
+    e.preventDefault();
+    if (!issueText.trim()) return;
+    setIssues([
+      { id: Date.now(), title: issueText, date: '01/11/2026', status: 'Đang chờ' },
+      ...issues
+    ]);
+    setIssueText('');
+  };
+
+  const myContract = contracts.find(c => c.tenant === user.full_name) || contracts[0];
+  const myInvoices = invoices.filter(i => i.tenant === user.full_name);
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#1e293b', fontFamily: 'system-ui, sans-serif', paddingBottom: '40px' }}>
+      <header style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '40px', height: '40px', background: '#4f46e5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+            <Building2 size={22} />
+          </div>
+          <div>
+            <h1 style={{ fontWeight: 'bold', fontSize: '18px', color: '#0f172a', margin: 0, lineHeight: 1.2 }}>roomly</h1>
+            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Cổng thông tin Người thuê</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', margin: 0 }}>{user.full_name}</p>
+            <p style={{ fontSize: '12px', color: '#4f46e5', fontWeight: 500, margin: 0 }}>Phòng {myContract?.room || 'P101'} • Tòa nhà Roomly</p>
+          </div>
+          <button
+            onClick={onLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 500, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer' }}
+          >
+            <LogOut size={15} />
+            Đăng xuất
+          </button>
+        </div>
+      </header>
+
+      <main style={{ maxWidth: '1000px', margin: '24px auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
+                <Home size={20} />
+                <h2 style={{ fontSize: '16px', margin: 0 }}>Thông tin phòng thuê</h2>
+              </div>
+              <span style={{ fontSize: '12px', fontWeight: 500, background: '#ecfdf5', color: '#059669', padding: '4px 10px', borderRadius: '20px' }}>
+                {myContract?.status || 'Đang hiệu lực'}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '14px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+              <div>
+                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Mã phòng</p>
+                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{myContract?.room || 'P101'}</p>
+              </div>
+              <div>
+                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Tiền đặt cọc</p>
+                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{money(myContract?.deposit || 3000000)}</p>
+              </div>
+              <div>
+                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Ngày bắt đầu</p>
+                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{date(myContract?.start_date)}</p>
+              </div>
+              <div>
+                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Ngày kết thúc</p>
+                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{date(myContract?.end_date)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
+                  <CreditCard size={20} />
+                  <h2 style={{ fontSize: '16px', margin: 0 }}>Hóa đơn tháng gần nhất</h2>
+                </div>
+                <span style={{ fontSize: '12px', fontWeight: 500, background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <AlertCircle size={13} /> Chưa thanh toán
+                </span>
+              </div>
+
+              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                  <span>Tiền phòng & Dịch vụ</span>
+                  <span>{money(myInvoices[0]?.total_amount || 3670000)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', color: '#0f172a', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
+                  <span>Tổng cộng</span>
+                  <span style={{ color: '#4f46e5' }}>{money(myInvoices[0]?.total_amount || 3670000)}</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowQR(!showQR)}
+              style={{ width: '100%', background: '#4f46e5', color: 'white', fontWeight: 500, padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: 'none', cursor: 'pointer' }}
+            >
+              <QrCode size={18} />
+              {showQR ? 'Ẩn mã QR thanh toán' : 'Thanh toán chuyển khoản (QR)'}
+            </button>
+
+            {showQR && (
+              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Quét mã QR bằng ứng dụng ngân hàng</p>
+                <div style={{ width: '120px', height: '120px', margin: '0 auto', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>
+                  [QR VietQR]
+                </div>
+                <p style={{ fontSize: '12px', fontWeight: 500, color: '#334155', margin: 0 }}>Nội dung: {myContract?.room} THANH TOAN</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
+              <Wrench size={20} />
+              <h2 style={{ fontSize: '16px', margin: 0 }}>Báo cáo sự cố / Hỗ trợ</h2>
+            </div>
+
+            <form onSubmit={handleSendIssue} style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={issueText}
+                onChange={(e) => setIssueText(e.target.value)}
+                placeholder="Nhập vấn đề cần hỗ trợ..."
+                style={{ flex: 1, fontSize: '14px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px 14px', outline: 'none' }}
+              />
+              <button
+                type="submit"
+                style={{ background: '#4f46e5', color: 'white', padding: '10px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 500, border: 'none', cursor: 'pointer' }}
+              >
+                <Send size={16} /> Gửi
+              </button>
+            </form>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {issues.map((item) => (
+                <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', borderRadius: '10px', fontSize: '14px' }}>
+                  <div>
+                    <p style={{ fontWeight: 500, color: '#1e293b', margin: 0 }}>{item.title}</p>
+                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0' }}>{item.date}</p>
+                  </div>
+                  <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '20px', fontWeight: 500, background: '#ecfdf5', color: '#059669' }}>
+                    {item.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
+              <FileText size={20} />
+              <h2 style={{ fontSize: '16px', margin: 0 }}>Lịch sử hóa đơn cá nhân</h2>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px' }}>
+              {myInvoices.map((inv) => (
+                <div key={inv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
+                  <div>
+                    <p style={{ fontWeight: 500, color: '#1e293b', margin: 0 }}>Tháng {inv.month}/{inv.year}</p>
+                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0' }}>Phòng {inv.room}</p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontWeight: 600, color: '#1e293b', margin: 0 }}>{money(inv.total_amount)}</p>
+                    <span style={{ fontSize: '11px', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
+                      <CheckCircle2 size={11} /> {inv.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+// Các component phụ trợ Admin (Dashboard, Rooms, Contracts, Invoices, UsersPage, Modal,...) giữ nguyên
 function PageHeading({eyebrow,title,description,action,children}) {
   return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div><div className="heading-actions">{children}{action}</div></div>;
 }
