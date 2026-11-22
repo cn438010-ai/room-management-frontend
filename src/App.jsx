@@ -249,6 +249,18 @@ function TenantPortal({ user, onLogout, invoices, contracts, issues, onAddIssue 
   const myInvoices = invoices.filter(i => i.tenant === user.full_name);
   const myIssues = issues.filter(i => i.tenant === user.full_name);
 
+  const latestInvoice = myInvoices[0] || {
+    month: 10,
+    year: 2026,
+    room_price: 3000000,
+    electricity_cost: 450000,
+    water_cost: 120000,
+    other_fees: 100000,
+    total_amount: 3670000,
+    status: 'Chưa thanh toán'
+  };
+  const isPaid = latestInvoice.status === 'Đã thanh toán';
+
   const handleSendIssue = (e) => {
     e.preventDefault();
     if (!issueText.trim()) return;
@@ -323,45 +335,82 @@ function TenantPortal({ user, onLogout, invoices, contracts, issues, onAddIssue 
             </div>
           </div>
 
+          {/* Hóa đơn tháng hiện tại - Tách rõ từng khoản mục */}
           <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
                   <CreditCard size={20} />
-                  <h2 style={{ fontSize: '16px', margin: 0 }}>Hóa đơn tháng gần nhất</h2>
+                  <h2 style={{ fontSize: '16px', margin: 0 }}>
+                    Hóa đơn tháng {latestInvoice.month}/{latestInvoice.year}
+                  </h2>
                 </div>
-                <span style={{ fontSize: '12px', fontWeight: 500, background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <AlertCircle size={13} /> {myInvoices[0]?.status || 'Chưa thanh toán'}
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    background: isPaid ? '#ecfdf5' : '#fef3c7',
+                    color: isPaid ? '#059669' : '#d97706',
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  {isPaid ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                  {latestInvoice.status}
                 </span>
               </div>
 
-              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px', borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                  <span>Tiền phòng & Dịch vụ</span>
-                  <span>{money(myInvoices[0]?.total_amount || 3670000)}</span>
+                  <span>1. Tiền thuê phòng</span>
+                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.room_price)}</b>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '16px', color: '#0f172a', borderTop: '1px solid #f1f5f9', paddingTop: '8px' }}>
-                  <span>Tổng cộng</span>
-                  <span style={{ color: '#4f46e5' }}>{money(myInvoices[0]?.total_amount || 3670000)}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                  <span>2. Tiền điện</span>
+                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.electricity_cost)}</b>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                  <span>3. Tiền nước</span>
+                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.water_cost)}</b>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                  <span>4. Phí dịch vụ / Khác</span>
+                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.other_fees)}</b>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', fontSize: '16px', color: '#0f172a', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '2px' }}>
+                  <span>Tổng cần thanh toán</span>
+                  <span style={{ color: '#4f46e5', fontSize: '18px' }}>{money(latestInvoice.total_amount)}</span>
                 </div>
               </div>
             </div>
 
-            <button
-              onClick={() => setShowQR(!showQR)}
-              style={{ width: '100%', background: '#4f46e5', color: 'white', fontWeight: 500, padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: 'none', cursor: 'pointer' }}
-            >
-              <QrCode size={18} />
-              {showQR ? 'Ẩn mã QR thanh toán' : 'Thanh toán chuyển khoản (QR)'}
-            </button>
+            {!isPaid ? (
+              <button
+                onClick={() => setShowQR(!showQR)}
+                style={{ width: '100%', background: '#4f46e5', color: 'white', fontWeight: 500, padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: 'none', cursor: 'pointer' }}
+              >
+                <QrCode size={18} />
+                {showQR ? 'Ẩn mã QR thanh toán' : 'Thanh toán chuyển khoản (QR)'}
+              </button>
+            ) : (
+              <div style={{ background: '#ecfdf5', color: '#059669', padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, textAlign: 'center' }}>
+                Hóa đơn kỳ này đã được thanh toán hoàn tất
+              </div>
+            )}
 
-            {showQR && (
+            {showQR && !isPaid && (
               <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Quét mã QR bằng ứng dụng ngân hàng</p>
                 <div style={{ width: '120px', height: '120px', margin: '0 auto', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>
                   [QR VietQR]
                 </div>
-                <p style={{ fontSize: '12px', fontWeight: 500, color: '#334155', margin: 0 }}>Nội dung: {myContract?.room} THANH TOAN</p>
+                <p style={{ fontSize: '12px', fontWeight: 600, color: '#334155', margin: 0 }}>
+                  Số tiền: {money(latestInvoice.total_amount)} • Nội dung: {myContract?.room || 'P101'} T{latestInvoice.month}
+                </p>
               </div>
             )}
           </div>
