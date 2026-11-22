@@ -29,17 +29,22 @@ const initialInvoices = [
   { id: 2, contract_id: 2, room: 'P201', tenant: 'Trần Thị Bình', month: 10, year: 2026, room_price: 2900000, electricity_cost: 520000, water_cost: 150000, other_fees: 0, total_amount: 3570000, status: 'Chưa thanh toán' },
   { id: 3, contract_id: 1, room: 'P101', tenant: 'Nguyễn Văn An', month: 9, year: 2026, room_price: 3000000, electricity_cost: 410000, water_cost: 120000, other_fees: 50000, total_amount: 3580000, status: 'Đã thanh toán' }
 ];
+const initialIssues = [
+  { id: 1, room: 'P101', tenant: 'Nguyễn Văn An', title: 'Đèn hành lang tầng 1 nhấp nháy', date: '10/11/2026', status: 'Đã xử lý' },
+  { id: 2, room: 'P201', tenant: 'Trần Thị Bình', title: 'Vòi nước bồn rửa mặt bị rò rỉ', date: '21/11/2026', status: 'Đang chờ' }
+];
+
 const money = n => new Intl.NumberFormat('vi-VN').format(Number(n || 0)) + ' đ';
 const date = s => s ? new Date(s + 'T00:00:00').toLocaleDateString('vi-VN') : '—';
 
 function App() {
-  // Trạng thái user đăng nhập: null (chưa đăng nhập), hoặc object user
   const [user, setUser] = useState(null);
   const [page, setPage] = useState('Dashboard');
   const [rooms, setRooms] = useState(initialRooms);
   const [users, setUsers] = useState(initialUsers);
   const [contracts, setContracts] = useState(initialContracts);
   const [invoices, setInvoices] = useState(initialInvoices);
+  const [issues, setIssues] = useState(initialIssues);
   const [query, setQuery] = useState('');
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -52,6 +57,7 @@ function App() {
     { label: 'Phòng', icon: DoorOpen, page: 'Rooms' },
     { label: 'Hợp đồng', icon: FileText, page: 'Contracts' },
     { label: 'Hóa đơn', icon: Receipt, page: 'Invoices' },
+    { label: 'Báo cáo sự cố', icon: Wrench, page: 'Issues' },
     { label: 'Người dùng', icon: Users, page: 'Users' }
   ];
   const occupied = rooms.filter(r => r.status === 'Đang thuê').length;
@@ -69,22 +75,45 @@ function App() {
     setModal(null); setEditing(null); notify(editing ? 'Đã cập nhật dữ liệu.' : 'Đã thêm dữ liệu mới.');
   }
   function remove(type, id) {
-    const setter = { room: setRooms, user: setUsers, contract: setContracts, invoice: setInvoices }[type];
-    const current = { room: rooms, user: users, contract: contracts, invoice: invoices }[type];
+    const setter = { room: setRooms, user: setUsers, contract: setContracts, invoice: setInvoices, issue: setIssues }[type];
+    const current = { room: rooms, user: users, contract: contracts, invoice: invoices, issue: issues }[type];
     if (window.confirm('Bạn có chắc chắn muốn xóa mục này?')) { setter(current.filter(x => x.id !== id)); notify('Đã xóa dữ liệu.'); }
   }
 
-  // 1. Nếu chưa đăng nhập -> Hiển thị trang Login
+  function addIssue(newIssue) {
+    setIssues([{ ...newIssue, id: Math.max(0, ...issues.map(i => i.id)) + 1 }, ...issues]);
+  }
+  function updateIssueStatus(id, status) {
+    setIssues(issues.map(i => i.id === id ? { ...i, status } : i));
+    notify(`Đã chuyển trạng thái sự cố sang "${status}".`);
+  }
+
   if (!user) {
     return <Login onLogin={(loggedInUser) => setUser(loggedInUser)} users={users} />;
   }
 
-  // 2. Nếu là Người thuê -> Hiển thị Cổng thông tin người thuê
   if (user.role === 'Người thuê') {
-    return <TenantPortal user={user} onLogout={() => setUser(null)} invoices={invoices} contracts={contracts} rooms={rooms} />;
+    return (
+      <TenantPortal
+        user={user}
+        onLogout={() => setUser(null)}
+        invoices={invoices}
+        contracts={contracts}
+        issues={issues}
+        onAddIssue={addIssue}
+      />
+    );
   }
 
-  // 3. Nếu là Admin -> Hiển thị giao diện quản lý
+  const pageTitle = {
+    Dashboard: 'Tổng quan',
+    Rooms: 'Quản lý phòng',
+    Contracts: 'Hợp đồng',
+    Invoices: 'Hóa đơn',
+    Issues: 'Báo cáo sự cố',
+    Users: 'Người dùng'
+  }[page];
+
   return <div className="app-shell">
     <aside className={`sidebar ${mobileOpen ? 'show' : ''}`}>
       <div className="brand"><div className="brand-mark"><Building2 size={21}/></div><div><b>roomly</b><small>PROPERTY MANAGER</small></div><button className="mobile-close" onClick={() => setMobileOpen(false)}><X/></button></div>
@@ -105,9 +134,9 @@ function App() {
     <main className="main-area">
       <header className="topbar">
         <button className="hamburger" onClick={() => setMobileOpen(true)}><Menu/></button>
-        <div className="breadcrumb">Workspace <span>/</span> <b>{page === 'Dashboard' ? 'Tổng quan' : page === 'Rooms' ? 'Quản lý phòng' : page === 'Contracts' ? 'Hợp đồng' : page === 'Invoices' ? 'Hóa đơn' : 'Người dùng'}</b></div>
+        <div className="breadcrumb">Workspace <span>/</span> <b>{pageTitle}</b></div>
         <div className="top-actions">
-          <div className="top-date"><CalendarDays size={15}/> Chủ nhật, 01/11/2026</div>
+          <div className="top-date"><CalendarDays size={15}/> Chủ nhật, 22/11/2026</div>
           <button className="icon-btn" onClick={() => notify('Bạn không có thông báo mới.')}><Bell size={18}/><i/></button>
           <div className="top-avatar" style={{ cursor: 'pointer' }} onClick={() => setUser(null)} title="Đăng xuất">AD</div>
         </div>
@@ -117,6 +146,7 @@ function App() {
         {page === 'Rooms' && <Rooms rooms={filtered(rooms)} allRooms={rooms} onAdd={() => openCreate('room')} onEdit={r => openEdit('room',r)} onDelete={id => remove('room',id)} query={query} setQuery={setQuery}/>}
         {page === 'Contracts' && <Contracts contracts={filtered(contracts)} users={users} rooms={rooms} onAdd={() => openCreate('contract')} onEdit={r => openEdit('contract',r)} onDelete={id => remove('contract',id)} query={query} setQuery={setQuery}/>}
         {page === 'Invoices' && <Invoices invoices={filtered(invoices)} onAdd={() => openCreate('invoice')} onEdit={r => openEdit('invoice',r)} onDelete={id => remove('invoice',id)} query={query} setQuery={setQuery}/>}
+        {page === 'Issues' && <IssuesPage issues={filtered(issues)} allIssues={issues} onStatusChange={updateIssueStatus} onDelete={id => remove('issue', id)} query={query} setQuery={setQuery}/>}
         {page === 'Users' && <UsersPage users={filtered(users)} onAdd={() => openCreate('user')} onEdit={r => openEdit('user',r)} onDelete={id => remove('user',id)} query={query} setQuery={setQuery}/>}
       </section>
     </main>
@@ -202,6 +232,7 @@ function Login({ onLogin, users }) {
           <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <button type="button" onClick={() => setUsername('admin')} style={{ fontSize: '11px', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>Admin: admin</button>
             <button type="button" onClick={() => setUsername('nguyenvana')} style={{ fontSize: '11px', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>Thuê phòng: nguyenvana</button>
+            <button type="button" onClick={() => setUsername('tranthib')} style={{ fontSize: '11px', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>Thuê phòng: tranthib</button>
           </div>
         </div>
       </div>
@@ -210,25 +241,26 @@ function Login({ onLogin, users }) {
 }
 
 // ----------------- COMPONENT: CỔNG THÔNG TIN NGƯỜI THUÊ -----------------
-function TenantPortal({ user, onLogout, invoices, contracts }) {
+function TenantPortal({ user, onLogout, invoices, contracts, issues, onAddIssue }) {
   const [showQR, setShowQR] = useState(false);
   const [issueText, setIssueText] = useState('');
-  const [issues, setIssues] = useState([
-    { id: 1, title: 'Đèn hành lang tầng 1 nhấp nháy', date: '10/11/2026', status: 'Đã xử lý' }
-  ]);
+
+  const myContract = contracts.find(c => c.tenant === user.full_name) || contracts[0];
+  const myInvoices = invoices.filter(i => i.tenant === user.full_name);
+  const myIssues = issues.filter(i => i.tenant === user.full_name);
 
   const handleSendIssue = (e) => {
     e.preventDefault();
     if (!issueText.trim()) return;
-    setIssues([
-      { id: Date.now(), title: issueText, date: '01/11/2026', status: 'Đang chờ' },
-      ...issues
-    ]);
+    onAddIssue({
+      room: myContract?.room || 'P101',
+      tenant: user.full_name,
+      title: issueText.trim(),
+      date: new Date().toLocaleDateString('vi-VN'),
+      status: 'Đang chờ'
+    });
     setIssueText('');
   };
-
-  const myContract = contracts.find(c => c.tenant === user.full_name) || contracts[0];
-  const myInvoices = invoices.filter(i => i.tenant === user.full_name);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#1e293b', fontFamily: 'system-ui, sans-serif', paddingBottom: '40px' }}>
@@ -299,7 +331,7 @@ function TenantPortal({ user, onLogout, invoices, contracts }) {
                   <h2 style={{ fontSize: '16px', margin: 0 }}>Hóa đơn tháng gần nhất</h2>
                 </div>
                 <span style={{ fontSize: '12px', fontWeight: 500, background: '#fef3c7', color: '#d97706', padding: '4px 10px', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <AlertCircle size={13} /> Chưa thanh toán
+                  <AlertCircle size={13} /> {myInvoices[0]?.status || 'Chưa thanh toán'}
                 </span>
               </div>
 
@@ -359,13 +391,20 @@ function TenantPortal({ user, onLogout, invoices, contracts }) {
             </form>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {issues.map((item) => (
+              {myIssues.map((item) => (
                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', borderRadius: '10px', fontSize: '14px' }}>
                   <div>
                     <p style={{ fontWeight: 500, color: '#1e293b', margin: 0 }}>{item.title}</p>
                     <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0' }}>{item.date}</p>
                   </div>
-                  <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '20px', fontWeight: 500, background: '#ecfdf5', color: '#059669' }}>
+                  <span style={{
+                    fontSize: '12px',
+                    padding: '4px 10px',
+                    borderRadius: '20px',
+                    fontWeight: 500,
+                    background: item.status === 'Đã xử lý' ? '#ecfdf5' : '#fef3c7',
+                    color: item.status === 'Đã xử lý' ? '#059669' : '#d97706'
+                  }}>
                     {item.status}
                   </span>
                 </div>
@@ -402,7 +441,7 @@ function TenantPortal({ user, onLogout, invoices, contracts }) {
   );
 }
 
-// Các component phụ trợ Admin (Dashboard, Rooms, Contracts, Invoices, UsersPage, Modal,...) giữ nguyên
+// ----------------- CÁC COMPONENT QUẢN TRỊ ADMIN -----------------
 function PageHeading({eyebrow,title,description,action,children}) {
   return <div className="page-heading"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div><div className="heading-actions">{children}{action}</div></div>;
 }
@@ -413,7 +452,7 @@ function Dashboard({rooms,contracts,invoices,occupied,available,revenue,setPage}
   const paid = invoices.filter(i => i.status === 'Đã thanh toán').length;
   return <>
     <PageHeading eyebrow="OVERVIEW" title="Tổng quan" description="Theo dõi tình hình hoạt động và các chỉ số của tòa nhà." action={<button className="btn btn-primary" onClick={() => setPage('Rooms')}><Plus size={17}/> Quản lý phòng</button>}/>
-    <div className="welcome-banner"><div><span className="welcome-label">CHỦ NHẬT, 01 THÁNG 11, 2026</span><h2>Chào buổi chiều, Admin! <span>✦</span></h2><p>Dưới đây là tình hình hoạt động của tòa nhà hôm nay.</p></div><div className="banner-art"><div className="art-building"><div/><div/><div/><div/><div/><div/></div><div className="art-sun"/></div></div>
+    <div className="welcome-banner"><div><span className="welcome-label">CHỦ NHẬT, 22 THÁNG 11, 2026</span><h2>Chào buổi chiều, Admin! <span>✦</span></h2><p>Dưới đây là tình hình hoạt động của tòa nhà hôm nay.</p></div><div className="banner-art"><div className="art-building"><div/><div/><div/><div/><div/><div/></div><div className="art-sun"/></div></div>
     <div className="section-title"><div><h3>Chỉ số hoạt động</h3><p>Tổng quan dữ liệu hiện tại</p></div><span className="period-pill">Tháng 11, 2026 <ChevronDown size={14}/></span></div>
     <div className="stats-grid">
       <Stat label="Tổng số phòng" value={rooms.length} sub="Phòng trong hệ thống" icon={Building2} tone="blue" trend="Tổng quan"/>
@@ -430,7 +469,7 @@ function Toolbar({query,setQuery,placeholder,button,onAdd}) {
   return <div className="toolbar"><div className="search-box"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={placeholder}/><kbd>⌘ K</kbd></div><button className="filter-btn" onClick={() => setQuery('')}><SlidersHorizontal size={16}/> Xóa lọc</button>{button && <button className="btn btn-primary" onClick={onAdd}><Plus size={17}/>{button}</button>}</div>;
 }
 function Status({value}) {
-  const cls = value?.includes('Đã thanh toán') || value?.includes('Còn trống') || value?.includes('Hoạt động') ? 'success' : value?.includes('Đang') || value?.includes('Chưa') ? 'warning' : value?.includes('Bảo trì') ? 'danger' : 'neutral';
+  const cls = value?.includes('Đã thanh toán') || value?.includes('Còn trống') || value?.includes('Hoạt động') || value?.includes('Đã xử lý') ? 'success' : value?.includes('Đang') || value?.includes('Chưa') ? 'warning' : value?.includes('Bảo trì') ? 'danger' : 'neutral';
   return <span className={`status ${cls}`}><i/>{value}</span>;
 }
 function ActionMenu({onEdit,onDelete}) { return <div className="row-actions"><button title="Sửa" onClick={onEdit}><Pencil size={15}/></button><button title="Xóa" onClick={onDelete}><Trash2 size={15}/></button></div>; }
@@ -446,6 +485,66 @@ function InvoiceTable({invoices,compact=false,onEdit,onDelete}) {
 function Invoices({invoices,onAdd,onEdit,onDelete,query,setQuery}) {
  const total = invoices.reduce((s,i)=>s+i.total_amount,0);
  return <><PageHeading eyebrow="BILLING" title="Quản lý hóa đơn" description="Theo dõi chi phí hàng tháng và tình trạng thanh toán của người thuê."/><div className="mini-stats"><div><span>Tổng hóa đơn đang hiển thị</span><b>{invoices.length}</b></div><div><span>Tổng giá trị</span><b>{money(total)}</b></div><div><span>Đã thanh toán</span><b>{invoices.filter(i=>i.status==='Đã thanh toán').length}</b></div><div><span>Chưa thanh toán</span><b>{invoices.filter(i=>i.status==='Chưa thanh toán').length}</b></div></div><Toolbar query={query} setQuery={setQuery} placeholder="Tìm theo mã, phòng, người thuê..." button="Tạo hóa đơn" onAdd={onAdd}/><div className="panel table-panel"><div className="panel-head"><div><h3>Danh sách hóa đơn</h3><p>{invoices.length} hóa đơn được tìm thấy</p></div></div><InvoiceTable invoices={invoices} onEdit={onEdit} onDelete={onDelete}/></div></>;
+}
+function IssuesPage({issues,allIssues,onStatusChange,onDelete,query,setQuery}) {
+  return <>
+    <PageHeading eyebrow="MAINTENANCE" title="Báo cáo sự cố" description="Tiếp nhận và cập nhật tiến độ xử lý sự cố từ người thuê phòng."/>
+    <div className="mini-stats">
+      <div><span>Tổng sự cố</span><b>{allIssues.length}</b></div>
+      <div><span>Đang chờ</span><b>{allIssues.filter(i => i.status === 'Đang chờ').length}</b></div>
+      <div><span>Đang xử lý</span><b>{allIssues.filter(i => i.status === 'Đang xử lý').length}</b></div>
+      <div><span>Đã xử lý</span><b>{allIssues.filter(i => i.status === 'Đã xử lý').length}</b></div>
+    </div>
+    <Toolbar query={query} setQuery={setQuery} placeholder="Tìm theo phòng, người thuê, nội dung sự cố..."/>
+    <div className="panel table-panel">
+      <div className="panel-head">
+        <div><h3>Danh sách sự cố</h3><p>{issues.length} yêu cầu được tìm thấy</p></div>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>MÃ</th>
+              <th>PHÒNG / NGƯỜI THUÊ</th>
+              <th>NỘI DUNG SỰ CỐ</th>
+              <th>NGÀY GỬI</th>
+              <th>TRẠNG THÁI</th>
+              <th>CẬP NHẬT</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {issues.map(item => (
+              <tr key={item.id}>
+                <td className="muted">#SC-{String(item.id).padStart(3, '0')}</td>
+                <td><div><b>{item.room}</b><small className="sub-cell">{item.tenant}</small></div></td>
+                <td><b>{item.title}</b></td>
+                <td>{item.date}</td>
+                <td><Status value={item.status}/></td>
+                <td>
+                  <select
+                    value={item.status}
+                    onChange={e => onStatusChange(item.id, e.target.value)}
+                    style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: 'white' }}
+                  >
+                    <option value="Đang chờ">Đang chờ</option>
+                    <option value="Đang xử lý">Đang xử lý</option>
+                    <option value="Đã xử lý">Đã xử lý</option>
+                  </select>
+                </td>
+                <td>
+                  <div className="row-actions">
+                    <button title="Xóa" onClick={() => onDelete(item.id)}><Trash2 size={15}/></button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {issues.length === 0 && <Empty/>}
+      </div>
+    </div>
+  </>;
 }
 function UsersPage({users,onAdd,onEdit,onDelete,query,setQuery}) {
  return <><PageHeading eyebrow="ACCESS CONTROL" title="Người dùng" description="Quản lý tài khoản, thông tin liên hệ và vai trò trong hệ thống."/><Toolbar query={query} setQuery={setQuery} placeholder="Tìm theo tên, username, email..." button="Thêm người dùng" onAdd={onAdd}/><div className="panel table-panel"><div className="panel-head"><div><h3>Danh sách người dùng</h3><p>{users.length} tài khoản</p></div></div><div className="table-wrap"><table><thead><tr><th>NGƯỜI DÙNG</th><th>USERNAME</th><th>EMAIL</th><th>SỐ ĐIỆN THOẠI</th><th>VAI TRÒ</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>{users.map(u=><tr key={u.id}><td><div className="user-cell"><div className="user-avatar">{u.full_name.split(' ').slice(-1)[0][0]}</div><b>{u.full_name}</b></div></td><td className="muted">@{u.username}</td><td>{u.email}</td><td>{u.phone_number}</td><td><span className="role-pill">{u.role}</span></td><td><Status value={u.status}/></td><td><ActionMenu onEdit={()=>onEdit(u)} onDelete={()=>onDelete(u.id)}/></td></tr>)}</tbody></table>{users.length===0&&<Empty/>}</div></div></>;
