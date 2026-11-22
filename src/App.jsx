@@ -82,6 +82,7 @@ function App() {
 
   function addIssue(newIssue) {
     setIssues([{ ...newIssue, id: Math.max(0, ...issues.map(i => i.id)) + 1 }, ...issues]);
+    notify('Đã gửi báo cáo sự cố tới Ban quản lý.');
   }
   function updateIssueStatus(id, status) {
     setIssues(issues.map(i => i.id === id ? { ...i, status } : i));
@@ -99,8 +100,11 @@ function App() {
         onLogout={() => setUser(null)}
         invoices={invoices}
         contracts={contracts}
+        rooms={rooms}
         issues={issues}
         onAddIssue={addIssue}
+        toast={toast}
+        notify={notify}
       />
     );
   }
@@ -240,19 +244,25 @@ function Login({ onLogin, users }) {
   );
 }
 
-// ----------------- COMPONENT: CỔNG THÔNG TIN NGƯỜI THUÊ -----------------
-function TenantPortal({ user, onLogout, invoices, contracts, issues, onAddIssue }) {
+// ----------------- COMPONENT: CỔNG THÔNG TIN NGƯỜI THUÊ (ĐỒNG BỘ STYLE ADMIN) -----------------
+function TenantPortal({ user, onLogout, invoices, contracts, rooms, issues, onAddIssue, toast, notify }) {
+  const [tenantPage, setTenantPage] = useState('Overview');
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [issueText, setIssueText] = useState('');
 
-  const myContract = contracts.find(c => c.tenant === user.full_name) || contracts[0];
+  const myContracts = contracts.filter(c => c.tenant === user.full_name);
+  const activeContract = myContracts.find(c => c.status === 'Đang hiệu lực') || myContracts[0] || contracts[0];
+  const myRoom = rooms.find(r => r.room_number === activeContract?.room) || rooms[0];
   const myInvoices = invoices.filter(i => i.tenant === user.full_name);
   const myIssues = issues.filter(i => i.tenant === user.full_name);
 
   const latestInvoice = myInvoices[0] || {
+    id: 1,
     month: 10,
     year: 2026,
-    room_price: 3000000,
+    room: activeContract?.room || 'P101',
+    room_price: myRoom?.price || 3000000,
     electricity_cost: 450000,
     water_cost: 120000,
     other_fees: 100000,
@@ -260,12 +270,28 @@ function TenantPortal({ user, onLogout, invoices, contracts, issues, onAddIssue 
     status: 'Chưa thanh toán'
   };
   const isPaid = latestInvoice.status === 'Đã thanh toán';
+  const unpaidCount = myInvoices.filter(i => i.status === 'Chưa thanh toán').length;
+  const initials = user.full_name.split(' ').slice(-1)[0][0];
+
+  const tenantNav = [
+    { label: 'Tổng quan', icon: LayoutDashboard, page: 'Overview' },
+    { label: 'Phòng & Hợp đồng', icon: DoorOpen, page: 'RoomContract' },
+    { label: 'Hóa đơn của tôi', icon: Receipt, page: 'MyInvoices' },
+    { label: 'Báo cáo sự cố', icon: Wrench, page: 'MyIssues' }
+  ];
+
+  const pageTitle = {
+    Overview: 'Tổng quan người thuê',
+    RoomContract: 'Phòng & Hợp đồng',
+    MyInvoices: 'Hóa đơn của tôi',
+    MyIssues: 'Báo cáo sự cố'
+  }[tenantPage];
 
   const handleSendIssue = (e) => {
     e.preventDefault();
     if (!issueText.trim()) return;
     onAddIssue({
-      room: myContract?.room || 'P101',
+      room: activeContract?.room || 'P101',
       tenant: user.full_name,
       title: issueText.trim(),
       date: new Date().toLocaleDateString('vi-VN'),
@@ -275,217 +301,388 @@ function TenantPortal({ user, onLogout, invoices, contracts, issues, onAddIssue 
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#1e293b', fontFamily: 'system-ui, sans-serif', paddingBottom: '40px' }}>
-      <header style={{ background: 'white', borderBottom: '1px solid #e2e8f0', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '40px', height: '40px', background: '#4f46e5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-            <Building2 size={22} />
-          </div>
+    <div className="app-shell">
+      {/* Sidebar giống hệt Admin */}
+      <aside className={`sidebar ${mobileOpen ? 'show' : ''}`}>
+        <div className="brand">
+          <div className="brand-mark"><Building2 size={21} /></div>
+          <div><b>roomly</b><small>TENANT PORTAL</small></div>
+          <button className="mobile-close" onClick={() => setMobileOpen(false)}><X /></button>
+        </div>
+
+        <div className="workspace">
+          <div className="workspace-icon">{activeContract?.room?.replace('P', '') || 'P'}</div>
           <div>
-            <h1 style={{ fontWeight: 'bold', fontSize: '18px', color: '#0f172a', margin: 0, lineHeight: 1.2 }}>roomly</h1>
-            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Cổng thông tin Người thuê</p>
+            <b>Phòng {activeContract?.room || 'P101'}</b>
+            <small>Tòa nhà Roomly</small>
           </div>
+          <ChevronDown size={15} />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', margin: 0 }}>{user.full_name}</p>
-            <p style={{ fontSize: '12px', color: '#4f46e5', fontWeight: 500, margin: 0 }}>Phòng {myContract?.room || 'P101'} • Tòa nhà Roomly</p>
+        <div className="nav-caption">MENU NGƯỜI THUÊ</div>
+        <nav>
+          {tenantNav.map(item => (
+            <button
+              key={item.page}
+              className={`nav-item ${tenantPage === item.page ? 'active' : ''}`}
+              onClick={() => { setTenantPage(item.page); setMobileOpen(false); }}
+            >
+              <item.icon size={18} />
+              <span>{item.label}</span>
+              {tenantPage === item.page && <span className="active-dot" />}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <div className="help-card">
+            <div className="help-icon">✦</div>
+            <b>Hỗ trợ cư dân</b>
+            <p>Gửi yêu cầu sửa chữa hoặc liên hệ quản lý tòa nhà.</p>
+            <button onClick={() => setTenantPage('MyIssues')}>Báo cáo sự cố <span>→</span></button>
           </div>
-          <button
-            onClick={onLogout}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 500, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer' }}
-          >
-            <LogOut size={15} />
-            Đăng xuất
+          <button className="nav-item" onClick={() => notify('Tài khoản người thuê đang hoạt động bình thường.')}>
+            <Settings size={18} /><span>Thông tin tài khoản</span>
           </button>
-        </div>
-      </header>
-
-      <main style={{ maxWidth: '1000px', margin: '24px auto', padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
-                <Home size={20} />
-                <h2 style={{ fontSize: '16px', margin: 0 }}>Thông tin phòng thuê</h2>
-              </div>
-              <span style={{ fontSize: '12px', fontWeight: 500, background: '#ecfdf5', color: '#059669', padding: '4px 10px', borderRadius: '20px' }}>
-                {myContract?.status || 'Đang hiệu lực'}
-              </span>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', fontSize: '14px', borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-              <div>
-                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Mã phòng</p>
-                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{myContract?.room || 'P101'}</p>
-              </div>
-              <div>
-                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Tiền đặt cọc</p>
-                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{money(myContract?.deposit || 3000000)}</p>
-              </div>
-              <div>
-                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Ngày bắt đầu</p>
-                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{date(myContract?.start_date)}</p>
-              </div>
-              <div>
-                <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0 }}>Ngày kết thúc</p>
-                <p style={{ fontWeight: 600, color: '#1e293b', margin: '4px 0 0' }}>{date(myContract?.end_date)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Hóa đơn tháng hiện tại - Tách rõ từng khoản mục */}
-          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '16px' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
-                  <CreditCard size={20} />
-                  <h2 style={{ fontSize: '16px', margin: 0 }}>
-                    Hóa đơn tháng {latestInvoice.month}/{latestInvoice.year}
-                  </h2>
-                </div>
-                <span
-                  style={{
-                    fontSize: '12px',
-                    fontWeight: 500,
-                    background: isPaid ? '#ecfdf5' : '#fef3c7',
-                    color: isPaid ? '#059669' : '#d97706',
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  {isPaid ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
-                  {latestInvoice.status}
-                </span>
-              </div>
-
-              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px', borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                  <span>1. Tiền thuê phòng</span>
-                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.room_price)}</b>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                  <span>2. Tiền điện</span>
-                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.electricity_cost)}</b>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                  <span>3. Tiền nước</span>
-                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.water_cost)}</b>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                  <span>4. Phí dịch vụ / Khác</span>
-                  <b style={{ color: '#1e293b', fontWeight: 600 }}>{money(latestInvoice.other_fees)}</b>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', fontSize: '16px', color: '#0f172a', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '2px' }}>
-                  <span>Tổng cần thanh toán</span>
-                  <span style={{ color: '#4f46e5', fontSize: '18px' }}>{money(latestInvoice.total_amount)}</span>
-                </div>
-              </div>
-            </div>
-
-            {!isPaid ? (
-              <button
-                onClick={() => setShowQR(!showQR)}
-                style={{ width: '100%', background: '#4f46e5', color: 'white', fontWeight: 500, padding: '10px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', border: 'none', cursor: 'pointer' }}
-              >
-                <QrCode size={18} />
-                {showQR ? 'Ẩn mã QR thanh toán' : 'Thanh toán chuyển khoản (QR)'}
-              </button>
-            ) : (
-              <div style={{ background: '#ecfdf5', color: '#059669', padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, textAlign: 'center' }}>
-                Hóa đơn kỳ này đã được thanh toán hoàn tất
-              </div>
-            )}
-
-            {showQR && !isPaid && (
-              <div style={{ padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Quét mã QR bằng ứng dụng ngân hàng</p>
-                <div style={{ width: '120px', height: '120px', margin: '0 auto', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>
-                  [QR VietQR]
-                </div>
-                <p style={{ fontSize: '12px', fontWeight: 600, color: '#334155', margin: 0 }}>
-                  Số tiền: {money(latestInvoice.total_amount)} • Nội dung: {myContract?.room || 'P101'} T{latestInvoice.month}
-                </p>
-              </div>
-            )}
+          <div className="profile" style={{ cursor: 'pointer' }} onClick={onLogout} title="Đăng xuất">
+            <div className="avatar">{initials}</div>
+            <div><b>{user.full_name}</b><small>Người thuê · {activeContract?.room || 'P101'}</small></div>
+            <LogOut size={17} />
           </div>
         </div>
+      </aside>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
-          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
-              <Wrench size={20} />
-              <h2 style={{ fontSize: '16px', margin: 0 }}>Báo cáo sự cố / Hỗ trợ</h2>
-            </div>
+      {mobileOpen && <div className="scrim" onClick={() => setMobileOpen(false)} />}
 
-            <form onSubmit={handleSendIssue} style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                value={issueText}
-                onChange={(e) => setIssueText(e.target.value)}
-                placeholder="Nhập vấn đề cần hỗ trợ..."
-                style={{ flex: 1, fontSize: '14px', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '10px 14px', outline: 'none' }}
+      <main className="main-area">
+        {/* Topbar giống hệt Admin */}
+        <header className="topbar">
+          <button className="hamburger" onClick={() => setMobileOpen(true)}><Menu /></button>
+          <div className="breadcrumb">Tenant Portal <span>/</span> <b>{pageTitle}</b></div>
+          <div className="top-actions">
+            <div className="top-date"><CalendarDays size={15} /> Chủ nhật, 22/11/2026</div>
+            <button className="icon-btn" onClick={() => notify(`Bạn có ${unpaidCount} hóa đơn chưa thanh toán.`)}><Bell size={18} /><i /></button>
+            <div className="top-avatar" style={{ cursor: 'pointer' }} onClick={onLogout} title="Đăng xuất">{initials}</div>
+          </div>
+        </header>
+
+        <section className="content">
+          {/* TAB 1: TỔNG QUAN NGƯỜI THUÊ */}
+          {tenantPage === 'Overview' && (
+            <>
+              <PageHeading
+                eyebrow="TENANT OVERVIEW"
+                title="Tổng quan"
+                description="Theo dõi thông tin phòng ở, hóa đơn hàng tháng và các yêu cầu hỗ trợ của bạn."
+                action={
+                  <button className="btn btn-primary" onClick={() => setTenantPage('MyInvoices')}>
+                    <CreditCard size={17} /> Thanh toán hóa đơn
+                  </button>
+                }
               />
-              <button
-                type="submit"
-                style={{ background: '#4f46e5', color: 'white', padding: '10px 16px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 500, border: 'none', cursor: 'pointer' }}
-              >
-                <Send size={16} /> Gửi
-              </button>
-            </form>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {myIssues.map((item) => (
-                <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', background: '#f8fafc', borderRadius: '10px', fontSize: '14px' }}>
-                  <div>
-                    <p style={{ fontWeight: 500, color: '#1e293b', margin: 0 }}>{item.title}</p>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0' }}>{item.date}</p>
-                  </div>
-                  <span style={{
-                    fontSize: '12px',
-                    padding: '4px 10px',
-                    borderRadius: '20px',
-                    fontWeight: 500,
-                    background: item.status === 'Đã xử lý' ? '#ecfdf5' : '#fef3c7',
-                    color: item.status === 'Đã xử lý' ? '#059669' : '#d97706'
-                  }}>
-                    {item.status}
-                  </span>
+              <div className="welcome-banner">
+                <div>
+                  <span className="welcome-label">CHỦ NHẬT, 22 THÁNG 11, 2026</span>
+                  <h2>Xin chào, {user.full_name}! <span>✦</span></h2>
+                  <p>Bạn đang thuê {myRoom?.room_name || activeContract?.room} tại Tòa nhà Roomly.</p>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div className="banner-art">
+                  <div className="art-building"><div /><div /><div /><div /><div /><div /></div>
+                  <div className="art-sun" />
+                </div>
+              </div>
 
-          <div style={{ background: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4f46e5', fontWeight: 600 }}>
-              <FileText size={20} />
-              <h2 style={{ fontSize: '16px', margin: 0 }}>Lịch sử hóa đơn cá nhân</h2>
-            </div>
+              <div className="section-title">
+                <div><h3>Thông tin nhanh</h3><p>Tình trạng thuê phòng & thanh toán hiện tại</p></div>
+                <span className="period-pill">Phòng {activeContract?.room || 'P101'}</span>
+              </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px' }}>
-              {myInvoices.map((inv) => (
-                <div key={inv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px' }}>
-                  <div>
-                    <p style={{ fontWeight: 500, color: '#1e293b', margin: 0 }}>Tháng {inv.month}/{inv.year}</p>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0' }}>Phòng {inv.room}</p>
+              <div className="stats-grid">
+                <Stat label="Phòng đang ở" value={activeContract?.room || 'P101'} sub={myRoom?.room_name || 'Phòng tiêu chuẩn'} icon={DoorOpen} tone="blue" trend={`Tầng ${myRoom?.floor || 1}`} />
+                <Stat label="Giá thuê hàng tháng" value={money(myRoom?.price || 3000000)} sub={`Diện tích ${myRoom?.area || 25} m²`} icon={Home} tone="purple" trend="Cố định" />
+                <Stat label="Hóa đơn gần nhất" value={money(latestInvoice.total_amount)} sub={`Kỳ tháng ${latestInvoice.month}/${latestInvoice.year}`} icon={Wallet} tone="orange" trend={latestInvoice.status} />
+                <Stat label="Yêu cầu sự cố" value={myIssues.length} sub={`${myIssues.filter(i => i.status === 'Đã xử lý').length} đã xử lý`} icon={Wrench} tone="green" trend="Hỗ trợ" />
+              </div>
+
+              <div className="dashboard-grid">
+                {/* Chi tiết hóa đơn tháng gần nhất */}
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>Hóa đơn tháng {latestInvoice.month}/{latestInvoice.year}</h3>
+                      <p>Chi tiết các khoản phí trong kỳ</p>
+                    </div>
+                    <Status value={latestInvoice.status} />
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontWeight: 600, color: '#1e293b', margin: 0 }}>{money(inv.total_amount)}</p>
-                    <span style={{ fontSize: '11px', color: '#059669', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-end' }}>
-                      <CheckCircle2 size={11} /> {inv.status}
-                    </span>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                      <span>1. Tiền thuê phòng</span>
+                      <b>{money(latestInvoice.room_price)}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                      <span>2. Tiền điện</span>
+                      <b>{money(latestInvoice.electricity_cost)}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                      <span>3. Tiền nước</span>
+                      <b>{money(latestInvoice.water_cost)}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                      <span>4. Phí dịch vụ / Khác</span>
+                      <b>{money(latestInvoice.other_fees)}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #cbd5e1', paddingTop: '12px', fontSize: '16px', fontWeight: 700 }}>
+                      <span>Tổng cộng</span>
+                      <span style={{ color: '#4f46e5' }}>{money(latestInvoice.total_amount)}</span>
+                    </div>
+
+                    {!isPaid && (
+                      <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '6px' }} onClick={() => setShowQR(!showQR)}>
+                        <QrCode size={17} /> {showQR ? 'Ẩn mã QR thanh toán' : 'Thanh toán chuyển khoản (QR)'}
+                      </button>
+                    )}
+
+                    {showQR && !isPaid && (
+                      <div style={{ padding: '14px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px' }}>Quét mã QR bằng ứng dụng ngân hàng</p>
+                        <div style={{ width: '110px', height: '110px', margin: '0 auto 8px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>
+                          [QR VietQR]
+                        </div>
+                        <b style={{ fontSize: '12px' }}>Nội dung: {latestInvoice.room} THANH TOAN T{latestInvoice.month}</b>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
+
+                {/* Báo cáo sự cố nhanh */}
+                <div className="panel">
+                  <div className="panel-head">
+                    <div>
+                      <h3>Báo cáo sự cố gần đây</h3>
+                      <p>Gửi yêu cầu sửa chữa trực tiếp tới quản lý</p>
+                    </div>
+                    <button className="text-button" onClick={() => setTenantPage('MyIssues')}>Xem tất cả →</button>
+                  </div>
+
+                  <form onSubmit={handleSendIssue} style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                    <input
+                      type="text"
+                      value={issueText}
+                      onChange={e => setIssueText(e.target.value)}
+                      placeholder="Mô tả sự cố (VD: Hỏng bóng đèn, rò nước...)"
+                      style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                    />
+                    <button type="submit" className="btn btn-primary"><Send size={15} /> Gửi</button>
+                  </form>
+
+                  <div className="recent-list">
+                    {myIssues.slice(0, 3).map(item => (
+                      <div className="recent-row" key={item.id}>
+                        <div className="recent-avatar"><Wrench size={15} /></div>
+                        <div className="recent-info">
+                          <b>{item.title}</b>
+                          <small>Phòng {item.room} · {item.date}</small>
+                        </div>
+                        <Status value={item.status} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* TAB 2: PHÒNG & HỢP ĐỒNG */}
+          {tenantPage === 'RoomContract' && (
+            <>
+              <PageHeading
+                eyebrow="MY LEASE"
+                title="Phòng & Hợp đồng"
+                description="Thông tin chi tiết căn phòng bạn đang thuê và lịch sử hợp đồng cá nhân."
+              />
+
+              <div className="mini-stats">
+                <div><span>Mã phòng</span><b>{myRoom?.room_number || 'P101'}</b></div>
+                <div><span>Tầng / Diện tích</span><b>Tầng {myRoom?.floor || 1} · {myRoom?.area || 25} m²</b></div>
+                <div><span>Giá thuê</span><b>{money(myRoom?.price || 3000000)}</b></div>
+                <div><span>Tiền đặt cọc</span><b>{money(activeContract?.deposit || 3000000)}</b></div>
+              </div>
+
+              {myRoom?.image && (
+                <div className="panel" style={{ marginBottom: '20px', display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <img src={myRoom.image} alt={myRoom.room_name} style={{ width: '240px', height: '150px', objectFit: 'cover', borderRadius: '12px' }} />
+                  <div>
+                    <span className="eyebrow">THÔNG TIN PHÒNG HIỆN TẠI</span>
+                    <h3 style={{ margin: '4px 0 8px' }}>{myRoom.room_number} - {myRoom.room_name}</h3>
+                    <p style={{ color: '#64748b', margin: '0 0 10px' }}>Tiện ích: {myRoom.description || 'Đầy đủ tiện nghi cơ bản'} · Sức chứa tối đa {myRoom.max_occupancy} người.</p>
+                    <Status value={myRoom.status} />
+                  </div>
+                </div>
+              )}
+
+              <div className="panel table-panel">
+                <div className="panel-head">
+                  <div><h3>Hợp đồng thuê của bạn</h3><p>{myContracts.length} hợp đồng được ghi nhận</p></div>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>MÃ HĐ</th>
+                        <th>PHÒNG</th>
+                        <th>NGÀY BẮT ĐẦU</th>
+                        <th>NGÀY KẾT THÚC</th>
+                        <th>TIỀN ĐẶT CỌC</th>
+                        <th>TRẠNG THÁI</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myContracts.map(c => (
+                        <tr key={c.id}>
+                          <td className="muted">#HD-{String(c.id).padStart(4, '0')}</td>
+                          <td><span className="room-code">{c.room}</span></td>
+                          <td>{date(c.start_date)}</td>
+                          <td>{date(c.end_date)}</td>
+                          <td className="amount">{money(c.deposit)}</td>
+                          <td><Status value={c.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* TAB 3: HÓA ĐƠN CỦA TÔI */}
+          {tenantPage === 'MyInvoices' && (
+            <>
+              <PageHeading
+                eyebrow="MY BILLING"
+                title="Hóa đơn của tôi"
+                description="Xem chi tiết từng khoản điện, nước, tiền phòng và thanh toán hàng tháng."
+                action={
+                  !isPaid && (
+                    <button className="btn btn-primary" onClick={() => setShowQR(!showQR)}>
+                      <QrCode size={17} /> {showQR ? 'Ẩn mã QR' : 'Thanh toán QR'}
+                    </button>
+                  )
+                }
+              />
+
+              {showQR && !isPaid && (
+                <div className="panel" style={{ marginBottom: '20px', textAlign: 'center' }}>
+                  <h3 style={{ margin: '0 0 6px' }}>Chuyển khoản thanh toán kỳ tháng {latestInvoice.month}/{latestInvoice.year}</h3>
+                  <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 12px' }}>Quét mã QR bên dưới bằng ứng dụng ngân hàng của bạn</p>
+                  <div style={{ width: '140px', height: '140px', margin: '0 auto 10px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#64748b' }}>
+                    [QR VietQR]
+                  </div>
+                  <b>Số tiền: {money(latestInvoice.total_amount)} · Nội dung: {latestInvoice.room} THANH TOAN T{latestInvoice.month}</b>
+                </div>
+              )}
+
+              <div className="panel table-panel">
+                <div className="panel-head">
+                  <div><h3>Chi tiết hóa đơn các kỳ</h3><p>{myInvoices.length} hóa đơn cá nhân</p></div>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>MÃ HÓA ĐƠN</th>
+                        <th>KỲ THANH TOÁN</th>
+                        <th>TIỀN PHÒNG</th>
+                        <th>TIỀN ĐIỆN</th>
+                        <th>TIỀN NƯỚC</th>
+                        <th>PHÍ KHÁC</th>
+                        <th>TỔNG CỘNG</th>
+                        <th>TRẠNG THÁI</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myInvoices.map(i => (
+                        <tr key={i.id}>
+                          <td className="muted">#INV-{String(i.id).padStart(4, '0')}</td>
+                          <td><b>Tháng {i.month}/{i.year}</b> <small className="sub-cell">Phòng {i.room}</small></td>
+                          <td>{money(i.room_price)}</td>
+                          <td>{money(i.electricity_cost)}</td>
+                          <td>{money(i.water_cost)}</td>
+                          <td>{money(i.other_fees)}</td>
+                          <td className="amount">{money(i.total_amount)}</td>
+                          <td><Status value={i.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {myInvoices.length === 0 && <Empty />}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* TAB 4: BÁO CÁO SỰ CỐ */}
+          {tenantPage === 'MyIssues' && (
+            <>
+              <PageHeading
+                eyebrow="SUPPORT & MAINTENANCE"
+                title="Báo cáo sự cố"
+                description="Gửi yêu cầu sửa chữa thiết bị trong phòng và theo dõi tiến độ xử lý."
+              />
+
+              <div className="panel" style={{ marginBottom: '20px' }}>
+                <div className="panel-head">
+                  <div><h3>Gửi yêu cầu hỗ trợ mới</h3><p>Yêu cầu sẽ được gửi trực tiếp đến bộ phận quản lý tòa nhà</p></div>
+                </div>
+                <form onSubmit={handleSendIssue} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    value={issueText}
+                    onChange={e => setIssueText(e.target.value)}
+                    placeholder="Nhập chi tiết sự cố cần khắc phục (VD: Điều hòa không mát, hỏng khóa cửa...)"
+                    style={{ flex: 1, minWidth: '240px', padding: '11px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px' }}
+                    required
+                  />
+                  <button type="submit" className="btn btn-primary"><Send size={16} /> Gửi báo cáo</button>
+                </form>
+              </div>
+
+              <div className="panel table-panel">
+                <div className="panel-head">
+                  <div><h3>Lịch sử yêu cầu của bạn</h3><p>{myIssues.length} yêu cầu đã gửi</p></div>
+                </div>
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>MÃ</th>
+                        <th>PHÒNG</th>
+                        <th>NỘI DUNG SỰ CỐ</th>
+                        <th>NGÀY GỬI</th>
+                        <th>TRẠNG THÁI XỬ LÝ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {myIssues.map(item => (
+                        <tr key={item.id}>
+                          <td className="muted">#SC-{String(item.id).padStart(3, '0')}</td>
+                          <td><span className="room-code">{item.room}</span></td>
+                          <td><b>{item.title}</b></td>
+                          <td>{item.date}</td>
+                          <td><Status value={item.status} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {myIssues.length === 0 && <Empty />}
+                </div>
+              </div>
+            </>
+          )}
+        </section>
       </main>
+      {toast && <div className="toast"><CheckCircle2 size={18} />{toast}</div>}
     </div>
   );
 }
@@ -518,7 +715,7 @@ function Toolbar({query,setQuery,placeholder,button,onAdd}) {
   return <div className="toolbar"><div className="search-box"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={placeholder}/><kbd>⌘ K</kbd></div><button className="filter-btn" onClick={() => setQuery('')}><SlidersHorizontal size={16}/> Xóa lọc</button>{button && <button className="btn btn-primary" onClick={onAdd}><Plus size={17}/>{button}</button>}</div>;
 }
 function Status({value}) {
-  const cls = value?.includes('Đã thanh toán') || value?.includes('Còn trống') || value?.includes('Hoạt động') || value?.includes('Đã xử lý') ? 'success' : value?.includes('Đang') || value?.includes('Chưa') ? 'warning' : value?.includes('Bảo trì') ? 'danger' : 'neutral';
+  const cls = value?.includes('Đã thanh toán') || value?.includes('Còn trống') || value?.includes('Hoạt động') || value?.includes('Đã xử lý') || value?.includes('Đang hiệu lực') ? 'success' : value?.includes('Đang') || value?.includes('Chưa') ? 'warning' : value?.includes('Bảo trì') ? 'danger' : 'neutral';
   return <span className={`status ${cls}`}><i/>{value}</span>;
 }
 function ActionMenu({onEdit,onDelete}) { return <div className="row-actions"><button title="Sửa" onClick={onEdit}><Pencil size={15}/></button><button title="Xóa" onClick={onDelete}><Trash2 size={15}/></button></div>; }
